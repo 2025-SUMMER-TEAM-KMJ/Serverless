@@ -53,6 +53,9 @@ wanted_company_profile/
 ```bash
 # 기본 실행 (신규 기업 수집, 최대 500개 기업), max_company_id는 생략 가능하며, 얼마나 수집 가능한지 확인 필요
 scrapy crawl wanted_company_profiles -a mode=create -a max_company_id=10000 -a max_companies=500
+```
 
+```bash
 # 업데이트 모드 실행
 scrapy crawl wanted_company_profiles -a mode=update
+```
