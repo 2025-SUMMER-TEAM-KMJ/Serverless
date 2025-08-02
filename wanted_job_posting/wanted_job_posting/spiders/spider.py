@@ -1,3 +1,6 @@
+import json
+import re
+from typing import Optional
 import scrapy
 import pymongo
 from datetime import datetime
@@ -152,7 +155,7 @@ class Spider(scrapy.Spider):
                     "crawledAt": datetime.now().isoformat()
                 },
 
-                sourceData=job_data,
+                sourceData="",
                 externalUrl=html_url,
                 status="active" if job.get("status") == "active" else "closed",
                 due_time=job.get("due_time"),
@@ -182,27 +185,128 @@ class Spider(scrapy.Spider):
                 title_images=[img.get("url") for img in job.get("company_images", [])]
             )
 
-            self._log_crawl(html_url)
-            yield item.to_dict()
+            item2 = MasterJobPosting(
+                metadata={
+                    "source": "wanted",
+                    "sourceUrl": detail_url,
+                    "crawledAt": datetime.now().isoformat()
+                },
 
+                sourceData="",
+                externalUrl=html_url,
+                status="active" if job.get("status") == "active" else "closed",
+                due_time=job.get("due_time"),
+                detail={
+                    "position": {
+                        "jobGroup": job["category_tag"]["parent_tag"]["text"],
+                        "job": [x["text"] for x in job["category_tag"]["child_tags"]]
+                    },
+                    "intro": detail_data.get("intro", ""),
+                    "main_tasks": detail_data.get("main_tasks", ""),
+                    "requirements": detail_data.get("requirements", ""),
+                    "preferred_points": detail_data.get("preferred_points", ""),
+                    "benefits": detail_data.get("benefits", ""),
+                    "hire_rounds": detail_data.get("hire_rounds", "")
+                },
+                company={
+                    "name": company.get("name", ""),
+                    "logo_img": job.get("logo_img", {}).get("origin"),
+                    "address": {
+                        "country": address.get("country", ""),
+                        "location": address.get("location", ""),
+                        "district": address.get("district", ""),
+                        "full_location": address.get("full_location", "")
+                    }
+                },
+                skill_tags=[tag.get("title") for tag in job.get("skill_tags", [])],
+                title_images=[img.get("url") for img in job.get("company_images", [])]
+            )
+
+            yield item
+
+            company_id = job.get("company", {}).get("id")
+            if company_id:
+                company_page_url = f"https://www.wanted.co.kr/company/{company_id}/"
+                self.logger.info(f"{company_page_url} 에서 기업 정보 파싱 시작")
+                yield scrapy.Request(
+                    url=company_page_url,
+                    callback=self.parse_company,
+                    headers={
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.wanted.co.kr/',  # 실제 방문 직전 페이지 URL로 변경
+                        'Connection': 'keep-alive',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Cache-Control': 'max-age=0',
+                        # 필요하다면 쿠키도 추가 가능
+                        # 'Cookie': '쿠키값들',
+                    },
+                    meta={"job_data": item2}
+                )
+            
         except Exception as e:
             self.logger.error(f"채용공고 파싱 실패: {response.url}, 에러: {e}")
 
-    def _log_crawl(self, url: str):
+    def parse_company(self, response):
         """
-        크롤링한 채용공고 URL을 MongoDB에 기록 (upsert 방식)
+        [최종 업그레이드] 오직 __NEXT_DATA__ JSON만을 파싱하여 모든 기업 정보를 추출합니다.
         """
+        job_post_object = response.meta["job_data"]
+
         try:
-            log = {
-                "url": url,
-                "purposes": ["job_posting"],
-                "crawledAt": datetime.now().isoformat()
-            }
-            client = pymongo.MongoClient(self.settings.get("MONGO_URI"))
-            db = client[self.settings.get("MONGO_DATABASE")]
-            collection = db[self.settings.get("MONGO_LOG_COLLECTION")]
-            collection.update_one({"url": url}, {"$set": log}, upsert=True)
-            client.close()
-            self.logger.info(f"크롤링 기록 저장 완료: {url}")
+            # 1. __NEXT_DATA__ 스크립트 태그에서 JSON 데이터 추출 및 파싱
+            next_data_str = response.xpath('//script[@id="__NEXT_DATA__"]/text()').get()
+            if not next_data_str:
+                raise ValueError("__NEXT_DATA__ script tag not found.")
+            
+            data = json.loads(next_data_str)
+            
+            # 데이터가 담겨있는 queries 리스트 경로로 이동
+            queries = data.get("props", {}).get("pageProps", {}).get("dehydrateState", {}).get("queries", [])
+
+            # 2. 'companyInfo' 키에서 데이터 추출 (태그 등)
+            company_info = next((q['state']['data'] for q in queries if q.get('queryKey', [None])[0] == 'companyInfo'), None)
+            
+            if company_info:
+                # 'features'에 회사 태그 할당
+                tags = [tag.get('title') for tag in company_info.get('companyTags', []) if tag.get('title')]
+                job_post_object.company["features"] = tags
+            else:
+                job_post_object.company["features"] = []
+
+            # 3. 'companySummary' 키에서 핵심 수치 데이터 추출 (연봉 등)
+            company_summary = next((q['state']['data'] for q in queries if q.get('queryKey', [None])[0] == 'companySummary'), None)
+
+            if company_summary:
+                # __NEXT_DATA__의 salary.salary 값은 '원' 단위 정수입니다.
+                # MasterJobPosting 스키마가 '만원' 단위 정수를 원한다면 10000으로 나눠줍니다.
+                avg_salary_won = company_summary.get("salary", {}).get("salary")
+                job_post_object.company["avgSalary"] = int(avg_salary_won) if avg_salary_won else None
+                
+                # 신규 입사자 연봉 데이터 키를 찾아서 할당
+                # 해당 키가 없을 수 있으므로 .get()으로 안전하게 접근
+                newbie_salary_won = company_summary.get("employee", {}).get("newbie_salary") # 실제 키 확인 필요
+                job_post_object.company["avgEntrySalary"] = int(newbie_salary_won) if newbie_salary_won else None
+            else:
+                job_post_object.company["avgSalary"] = None
+                job_post_object.company["avgEntrySalary"] = None
+
+            self.logger.info(f"__NEXT_DATA__ 파싱 완료: {job_post_object.company['name']} "
+                             f"(평균연봉: {job_post_object.company['avgSalary']}만원, "
+                             f"신규입사자연봉: {job_post_object.company['avgEntrySalary']}만원)")
+            
+            # 4. 모든 정보가 채워진 객체를 to_dict()로 변환하여 반환
+            yield job_post_object
+
         except Exception as e:
-            self.logger.error(f"크롤링 기록 저장 실패: {url}, 에러: {e}")
+            self.logger.error(f"기업정보 결합 또는 검증 실패(__NEXT_DATA__): {response.url}, 에러: {e}", exc_info=True)
+            # ... (Fallback 로직은 동일) ...
+            try:
+                job_post_object.company["features"] = job_post_object.company.get("features", [])
+                job_post_object.company["avgSalary"] = None
+                job_post_object.company["avgEntrySalary"] = None
+                yield job_post_object
+            except Exception as final_e:
+                self.logger.critical(f"Fallback 데이터 생성조차 실패: {getattr(job_post_object, 'externalUrl', 'N/A')}, 에러: {final_e}")
