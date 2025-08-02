@@ -35,4 +35,4 @@ jobs:
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DATABASE: ${{ secrets.MONGO_DATABASE }}
-        run: scrapy crawl wanted_company_profiles -a mode=${{ github.event.inputs.mode }} -a max_companies=${{ github.event.inputs.max_companies }}
+        run: cd wanted_company_profile && scrapy crawl wanted_company_profiles -a mode=${{ github.event.inputs.mode }} -a max_companies=${{ github.event.inputs.max_companies }}
