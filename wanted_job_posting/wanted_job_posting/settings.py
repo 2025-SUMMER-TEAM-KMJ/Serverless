@@ -42,12 +42,13 @@ ROBOTSTXT_OBEY = False
 
 # 방금 작성한 MongoDB 파이프라인 활성화
 ITEM_PIPELINES = {
-   'wanted_job_posting.pipelines.MongoPipeline': 300,
+   'wanted_job_posting.pipelines.WantedJobPostingPipeline': 300,
+   'wanted_job_posting.pipelines.MasterJobPostingPipeline': 400,
 }
 
 # MongoDB 연결 정보 (사용자 환경에 맞게 수정)
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
-MONGO_DATABASE = os.getenv('MONGO_DATABASE', 'wanted_db')
+MONGO_DATABASE = os.getenv('MONGO_DATABASE', 'db')
 MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'wanted_job_postings')
 MONGO_LOG_COLLECTION = os.getenv('MONGO_LOG_COLLECTION', 'master_crawler_logs')
 
@@ -94,11 +95,11 @@ TELNETCONSOLE_ENABLED = False
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-#AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_ENABLED = True
 # The initial download delay
 #AUTOTHROTTLE_START_DELAY = 5
 # The maximum download delay to be set in case of high latencies
-#AUTOTHROTTLE_MAX_DELAY = 60
+AUTOTHROTTLE_MAX_DELAY = 10
 # The average number of requests Scrapy should be sending in parallel to
 # each remote server
 #AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
