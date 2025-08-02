@@ -1,7 +1,7 @@
 import scrapy
 import pymongo
 from datetime import datetime
-from wanted_job_posting.models import WantedJobPosting
+from wanted_job_posting.models import MasterJobPosting, WantedJobPosting
 
 
 class Spider(scrapy.Spider):
@@ -51,7 +51,6 @@ class Spider(scrapy.Spider):
         mongo_uri = self.settings.get("MONGO_URI")
         mongo_db = self.settings.get("MONGO_DATABASE")
         mongo_log_collection = self.settings.get("MONGO_LOG_COLLECTION")
-
         if not all([mongo_uri, mongo_db, mongo_log_collection]):
             self.logger.warning("MongoDB log 설정이 누락되어 중복 체크를 건너뜁니다.")
             return
@@ -73,7 +72,7 @@ class Spider(scrapy.Spider):
         """
         if self.mode == "create":
             yield scrapy.Request(
-                url="https://www.wanted.co.kr/api/v4/jobs?limit=20&offset=0&country=kr&job_sort=job.latest_order&years=-1&locations=all",
+                url=f"https://www.wanted.co.kr/api/v4/jobs?limit=20&offset=0&country=kr&job_sort={self.settings.get("job_sort", "job.latest_order")}&years=-1&locations=all",
                 callback=self.parse_list,
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -120,15 +119,15 @@ class Spider(scrapy.Spider):
                 return
 
             job_id = job.get("id")
-            detail_url = f"https://www.wanted.co.kr/api/v4/jobs/{job_id}"
             html_url = f"https://www.wanted.co.kr/wd/{job_id}"
+            detail_url = f"https://www.wanted.co.kr/api/chaos/jobs/v4/{job_id}/details"
 
-            if html_url in self.crawled_urls:
-                self.logger.debug(f"이미 수집된 URL: {html_url}")
+            if detail_url in self.crawled_urls:
+                self.logger.debug(f"이미 수집된 URL: {detail_url}")
                 continue
 
             self.collected_count += 1
-            yield scrapy.Request(detail_url, callback=self.parse_detail, meta={"html_url": html_url})
+            yield scrapy.Request(detail_url, callback=self.parse_detail, meta={"detail_url": detail_url, "html_url": html_url})
 
         # 다음 페이지 요청
         if len(jobs) == 20 and len(self.crawled_urls) < self.max_jobs:
@@ -138,27 +137,29 @@ class Spider(scrapy.Spider):
 
     def parse_detail(self, response):
         try:
-            job_data = response.json()
+            job_data = response.json()["data"]
             job = job_data.get("job", {})
             detail_data = job.get("detail", {})
-            html_url = response.meta.get("html_url", response.url.replace("/api/v4/jobs/", "/wd/"))
+            detail_url = response.meta.get("detail_url")
+            html_url = response.meta.get("html_url")
             address = job.get("address", {})
             company = job.get("company", {})
 
             item = WantedJobPosting(
                 metadata={
-                    "source": "Wanted",
-                    "sourceUrl": html_url,
+                    "source": "wanted",
+                    "sourceUrl": detail_url,
                     "crawledAt": datetime.now().isoformat()
                 },
+
                 sourceData=job_data,
                 externalUrl=html_url,
                 status="active" if job.get("status") == "active" else "closed",
                 due_time=job.get("due_time"),
                 detail={
                     "position": {
-                        "jobGroup": "기타",
-                        "job": job.get("position", "기타")
+                        "jobGroup": job["category_tag"]["parent_tag"]["text"],
+                        "job": ','.join([x["text"] for x in job["category_tag"]["child_tags"]])
                     },
                     "intro": detail_data.get("intro", ""),
                     "main_tasks": detail_data.get("main_tasks", ""),

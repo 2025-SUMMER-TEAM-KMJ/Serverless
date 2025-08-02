@@ -41,9 +41,9 @@ ADDONS = {}
 ROBOTSTXT_OBEY = False
 
 # 방금 작성한 MongoDB 파이프라인 활성화
-ITEM_PIPELINES = {
-   'wanted_job_posting.pipelines.MongoPipeline': 300,
-}
+# ITEM_PIPELINES = {
+#    'wanted_job_posting.pipelines.MongoPipeline': 300,
+# }
 
 # MongoDB 연결 정보 (사용자 환경에 맞게 수정)
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
