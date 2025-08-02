@@ -35,7 +35,7 @@ class Spider(scrapy.Spider):
                 self.max_jobs = int(kwargs["max_jobs"])
             except ValueError:
                 self.logger.warning(f"max_jobs 인자값이 정수로 변환되지 않아 기본값 {self.max_jobs} 사용")
-
+        self.job_sort = kwargs.get("job_sort", "job.latest_order")
         self.crawled_urls = set()
 
         if self.mode == "create":
@@ -75,7 +75,7 @@ class Spider(scrapy.Spider):
         """
         if self.mode == "create":
             yield scrapy.Request(
-                url=f"https://www.wanted.co.kr/api/v4/jobs?limit=20&offset=0&country=kr&job_sort={self.settings.get("job_sort", "job.latest_order")}&years=-1&locations=all",
+                url=f"https://www.wanted.co.kr/api/v4/jobs?limit=20&offset=0&country=kr&job_sort={self.job_sort}&years=-1&locations=all",
                 callback=self.parse_list,
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
