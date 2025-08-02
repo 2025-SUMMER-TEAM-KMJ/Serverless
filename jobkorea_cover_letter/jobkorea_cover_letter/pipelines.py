@@ -30,7 +30,7 @@ class MongoPipeline:
         spider.logger.info("MongoDB connection closed.")
 
     def process_item(self, item, spider):
-        data = item
+        data = item.to_dict()
         source_url = data['metadata']['sourceUrl']
         
         try:
