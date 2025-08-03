@@ -48,7 +48,7 @@ ITEM_PIPELINES = {
 # MongoDB 연결 정보 (사용자 환경에 맞게 수정)
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
 MONGO_DATABASE = os.getenv('MONGO_DATABASE', 'db')
-MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'wanted_company_profile')
+MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'wanted_company_profiles')
 MONGO_LOG_COLLECTION = os.getenv('MONGO_LOG_COLLECTION', 'master_crawler_logs')
 
 # Concurrency and throttling settings
