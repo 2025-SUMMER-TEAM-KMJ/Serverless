@@ -294,8 +294,8 @@ class Spider(scrapy.Spider):
                 job_post_object.company["avgEntrySalary"] = None
 
             self.logger.info(f"__NEXT_DATA__ 파싱 완료: {job_post_object.company['name']} "
-                             f"(평균연봉: {job_post_object.company['avgSalary']}만원, "
-                             f"신규입사자연봉: {job_post_object.company['avgEntrySalary']}만원)")
+                             f"(평균연봉: {job_post_object.company['avgSalary']}, "
+                             f"신규입사자연봉: {job_post_object.company['avgEntrySalary']})")
             
             # 4. 모든 정보가 채워진 객체를 to_dict()로 변환하여 반환
             yield job_post_object
