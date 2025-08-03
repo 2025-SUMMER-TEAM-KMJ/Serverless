@@ -39,4 +39,4 @@ jobs:
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DATABASE: ${{ secrets.MONGO_DATABASE }}
-        run: cd wanted_job_posting && scrapy crawl wanted_job_postings -a mode=${{ github.event.inputs.mode }} -a max_jobs=${{ github.event.inputs.max_jobs }} -a job_osrt=${{ github.event.inputs.job_sort }}
+        run: cd wanted_job_posting && scrapy crawl wanted_job_postings -a mode=${{ github.event.inputs.mode || vars.JOB_POSTING_MODE || 'create'}} -a max_jobs=${{ github.event.inputs.max_jobs || vars.JOB_POSTING_MAX_JOBS || 100 }} -a job_osrt=${{ github.event.inputs.job_sort || vars.JOB_POSTING_JOB_SORT || 'job.popularity_order'}}

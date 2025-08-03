@@ -8,7 +8,7 @@ on:
       max_companies:
         description: '최대 회사 수'
         required: true
-        default: '3'
+        default: '20'
       max_essays_per_company:
         description: '회사당 최대 에세이 수'
         required: true
@@ -35,4 +35,4 @@ jobs:
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DATABASE: ${{ secrets.MONGO_DATABASE }}
-        run: cd jobkorea_cover_letter && scrapy crawl jobkorea_cover_letter -a max_companies=${{ github.event.inputs.max_companies }} -a max_essays_per_company=${{ github.event.inputs.max_essays_per_company }}
+        run: cd jobkorea_cover_letter && scrapy crawl jobkorea_cover_letter -a mode=${{github.event.inputs.mode || vars.COVOER_LETTER_MODE || 'create'}} -a max_companies=${{ github.event.inputs.max_companies || vars.COVER_LETTER_MAX_COMPANIES || 20}} -a max_essays_per_company=${{ github.event.inputs.max_essays_per_company || vars.COVER_LETTER_MAX_ESSAYS_PER_COMPANY || 5}}
