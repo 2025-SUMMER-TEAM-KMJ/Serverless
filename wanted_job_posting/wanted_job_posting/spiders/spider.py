@@ -133,7 +133,7 @@ class Spider(scrapy.Spider):
             yield scrapy.Request(detail_url, callback=self.parse_detail, meta={"detail_url": detail_url, "html_url": html_url})
 
         # 다음 페이지 요청
-        if len(jobs) == 20 and len(self.crawled_urls) < self.max_jobs:
+        if self.collected_count < self.max_jobs:
             next_offset = offset + 20
             next_url = response.url.replace(f"offset={offset}", f"offset={next_offset}")
             yield scrapy.Request(next_url, callback=self.parse_list)
