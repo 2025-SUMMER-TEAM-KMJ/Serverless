@@ -103,7 +103,7 @@ class Spider(scrapy.Spider):
             cursor = collection.find({"purposes": "job_posting"}, {"url": 1})
 
             for doc in cursor:
-                yield scrapy.Request(url=doc["url"].replace("/wd/", "/api/v4/jobs/"), callback=self.parse_detail)
+                yield scrapy.Request(url=doc["url"], callback=self.parse_detail)
 
             client.close()
         except Exception as e:
