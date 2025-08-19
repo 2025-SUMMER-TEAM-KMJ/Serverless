@@ -182,7 +182,7 @@ class Spider(scrapy.Spider):
                     }
                 },
                 skill_tags=[tag.get("title") for tag in job.get("skill_tags", [])],
-                title_images=[img.get("url") for img in job.get("company_images", [])]
+                title_images=job.get("title_images", [])
             )
 
             item2 = MasterJobPosting(
@@ -219,7 +219,7 @@ class Spider(scrapy.Spider):
                     }
                 },
                 skill_tags=[tag.get("title") for tag in job.get("skill_tags", [])],
-                title_images=[img.get("url") for img in job.get("company_images", [])]
+                title_images=job.get("title_images", [])
             )
 
             yield item
