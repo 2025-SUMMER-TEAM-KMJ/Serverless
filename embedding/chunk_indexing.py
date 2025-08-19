@@ -22,7 +22,7 @@ MONGO_URI = os.getenv("MONGO_URI")
 HOST = os.getenv("VM_SSH_HOST")
 
 # ── Mongo/Chroma ──
-client = MongoClient()
+client = MongoClient(MONGO_URI)
 db = client["db"]
 collection = db["master_job_postings"]
 
