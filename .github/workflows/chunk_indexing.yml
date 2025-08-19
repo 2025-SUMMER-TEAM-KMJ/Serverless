@@ -1,8 +1,6 @@
 name: Process and Index Job Postings
 
 on:
-  schedule:
-    - cron: '0 1 * * *'  # 한국 시간(KST) 기준 매일 오전 10시에 실행
   workflow_dispatch: {}    # Actions 탭에서 수동으로 실행 가능
 
 jobs:
@@ -27,11 +25,11 @@ jobs:
         # Mongo에서 데이터를 읽어와 분류하고 필드를 정리합니다.
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: cd embedding && python field_standardization.py
+        run: python field_standardization.py
 
       - name: Run Chunk Indexing
         # 정리된 데이터를 읽어와 벡터 DB(ChromaDB)에 인덱싱합니다.
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           VM_SSH_HOST: ${{ secrets.VM_SSH_HOST }}
-        run: cd embedding && python chunk_indexing.py
+        run: python chunk_indexing.py
