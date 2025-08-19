@@ -26,4 +26,4 @@ jobs:
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           VM_SSH_HOST: ${{ secrets.VM_SSH_HOST }}
-        run: python chunk_indexing.py
+        run: cd embedding && python chunk_indexing.py
