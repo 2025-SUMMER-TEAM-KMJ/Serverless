@@ -243,7 +243,8 @@ class Spider(scrapy.Spider):
                         # 필요하다면 쿠키도 추가 가능
                         # 'Cookie': '쿠키값들',
                     },
-                    meta={"job_data": item2}
+                    meta={"job_data": item2,
+                          "title_images": job.get("title_images", [])}
                 )
             
         except Exception as e:
@@ -296,7 +297,9 @@ class Spider(scrapy.Spider):
             self.logger.info(f"__NEXT_DATA__ 파싱 완료: {job_post_object.company['name']} "
                              f"(평균연봉: {job_post_object.company['avgSalary']}, "
                              f"신규입사자연봉: {job_post_object.company['avgEntrySalary']})")
-            
+
+            job_post_object.title_images = response.meta.get("title_images", [])
+
             # 4. 모든 정보가 채워진 객체를 to_dict()로 변환하여 반환
             yield job_post_object
 
