@@ -103,7 +103,17 @@ class Spider(scrapy.Spider):
             cursor = collection.find({"purposes": "job_posting"}, {"url": 1})
 
             for doc in cursor:
-                yield scrapy.Request(url=doc["url"], callback=self.parse_detail)
+                detail_url = doc["url"]
+                m = re.search(r"/jobs/v4/(\d+)/details", detail_url)
+                job_id = m.group(1) if m else None
+                html_url = f"https://www.wanted.co.kr/wd/{job_id}" if job_id else None
+
+                yield scrapy.Request(
+                    url=detail_url,
+                    callback=self.parse_detail,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+                    meta={"detail_url": detail_url, "html_url": html_url}
+                )
 
             client.close()
         except Exception as e:
@@ -143,10 +153,44 @@ class Spider(scrapy.Spider):
             job_data = response.json()["data"]
             job = job_data.get("job", {})
             detail_data = job.get("detail", {})
-            detail_url = response.meta.get("detail_url")
+
+            # meta 우선, 없으면 폴백으로 response.url 사용
+            detail_url = response.meta.get("detail_url") or response.url
             html_url = response.meta.get("html_url")
+            if not html_url:
+                m = re.search(r"/jobs/v4/(\d+)/details", detail_url)
+                job_id = m.group(1) if m else None
+                html_url = f"https://www.wanted.co.kr/wd/{job_id}" if job_id else None
+
             address = job.get("address", {})
             company = job.get("company", {})
+
+            # API에서 받은 최신 title_images
+            new_title_images = job.get("title_images") or []
+            self.logger.debug(f"[API] title_images len={len(new_title_images)} url={detail_url}")
+
+            # update 모드에서 빈 배열이면 기존 DB 값으로 보강
+            if self.mode == "update" and not new_title_images and html_url:
+                try:
+                    mongo_uri = self.settings.get("MONGO_URI")
+                    mongo_db = self.settings.get("MONGO_DATABASE")
+                    client = pymongo.MongoClient(mongo_uri)
+                    db = client[mongo_db]
+                    prev = db["master_job_postings"].find_one(
+                        {"externalUrl": html_url},
+                        {"title_images": 1}
+                    )
+                    if prev and prev.get("title_images"):
+                        self.logger.debug(
+                            f"[COALESCE] keep previous title_images len={len(prev['title_images'])} for {html_url}")
+                        new_title_images = prev["title_images"]
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
 
             item = WantedJobPosting(
                 metadata={
@@ -173,7 +217,7 @@ class Spider(scrapy.Spider):
                 },
                 company={
                     "name": company.get("name", ""),
-                    "logo_img": job.get("logo_img", {}).get("origin"),
+                    "logo_img": (company.get("logo_img") or {}).get("origin"),
                     "address": {
                         "country": address.get("country", ""),
                         "location": address.get("location", ""),
@@ -182,7 +226,7 @@ class Spider(scrapy.Spider):
                     }
                 },
                 skill_tags=[tag.get("title") for tag in job.get("skill_tags", [])],
-                title_images=job.get("title_images", [])
+                title_images=new_title_images
             )
 
             item2 = MasterJobPosting(
@@ -210,7 +254,7 @@ class Spider(scrapy.Spider):
                 },
                 company={
                     "name": company.get("name", ""),
-                    "logo_img": job.get("logo_img", {}).get("origin"),
+                    "logo_img": (company.get("logo_img") or {}).get("origin"),
                     "address": {
                         "country": address.get("country", ""),
                         "location": address.get("location", ""),
@@ -219,7 +263,7 @@ class Spider(scrapy.Spider):
                     }
                 },
                 skill_tags=[tag.get("title") for tag in job.get("skill_tags", [])],
-                title_images=job.get("title_images", [])
+                title_images=new_title_images
             )
 
             yield item
@@ -244,7 +288,7 @@ class Spider(scrapy.Spider):
                         # 'Cookie': '쿠키값들',
                     },
                     meta={"job_data": item2,
-                          "title_images": job.get("title_images", [])}
+                          "title_images": new_title_images}
                 )
             
         except Exception as e:
@@ -298,7 +342,9 @@ class Spider(scrapy.Spider):
                              f"(평균연봉: {job_post_object.company['avgSalary']}, "
                              f"신규입사자연봉: {job_post_object.company['avgEntrySalary']})")
 
-            job_post_object.title_images = response.meta.get("title_images", [])
+            title_images_from_meta = response.meta.get("title_images", [])
+            if not getattr(job_post_object, "title_images", None) and title_images_from_meta:
+                job_post_object.title_images = title_images_from_meta
 
             # 4. 모든 정보가 채워진 객체를 to_dict()로 변환하여 반환
             yield job_post_object
